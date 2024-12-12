@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pokemon Test Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* General Body Styling */
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f0f0;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            text-align: center;
+        }
+
+        /* Navigation Bar */
+        nav {
+            background-color: #3498db;
+            padding: 10px 20px;
+        }
+
+        nav ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+        }
+
+        nav ul li {
+            margin: 0 20px;
+        }
+
+        nav ul li a {
+            color: white;
+            text-decoration: none;
+            font-size: 1.2em;
+            padding: 10px 20px;
+            display: block;
+        }
+
+        nav ul li a:hover {
+            background-color: #2980b9;
+            border-radius: 5px;
+        }
+
+        /* Title Header Styling */
+        h1 {
+            font-family: 'Roboto', sans-serif;
+            font-size: 2.5em;
+            color: #2c3e50;
+            margin-top: 30px;
+        }
+
+        /* Dashboard Section */
+        #dashboard {
+            margin-top: 50px;
+        }
+
+        #chart-container {
+            width: 80%;
+            margin: 0 auto;
+        }
+
+        /* Pokemon Details Styling */
+        #pokemon-details {
+            background-color: white;
+            border-radius: 10px;
+            margin-top: 30px;
+            padding: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            display: none;
+        }
+
+        #pokemon-details h2 {
+            font-size: 2em;
+            color: #2980b9;
+        }
+
+        #pokemon-details img {
+            max-width: 200px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        #details {
+            font-size: 1.2em;
+            color: #555;
+            text-align: left;
+        }
+
+        /* Responsive Design */
+        @media only screen and (max-width: 600px) {
+            h1 {
+                font-size: 2em;
+            }
+
+            #pokemonId {
+                width: 70%;
+            }
+
+            #searchButton {
+                width: 70%;
+                margin-top: 10px;
+            }
+
+            #pokemon-details {
+                width: 90%;
+                padding: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navigation Bar -->
+    <nav>
+        <ul>
+            <li><a href="#">Home</a></li>
+            <li><a href="#">About</a></li>
+            <li><a href="#">Contact</a></li>
+        </ul>
+    </nav>
+
+    <h1>Pokemon Test Dashboard</h1>
+
+    <div>
+        <input type="text" id="pokemonId" placeholder="Enter Pokemon ID">
+        <button id="searchButton">Search</button>
+    </div>
+    
+    <div id="pokemon-details">
+        <h2>Details</h2>
+        <img id="pokemonImage" src="" alt="Pokemon Image">
+        <div id="details"></div>
+    </div>
+
+    <div id="dashboard">
+        <h2>Aggregated Statistics</h2>
+        <div id="chart-container">
+            <canvas id="typeChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const pokemonData = {}; // To store all the aggregated data
+        
+        // Function to fetch Pokémon details
+        document.getElementById('searchButton').addEventListener('click', function() {
+            const pokemonId = document.getElementById('pokemonId').value;
+            const detailsDiv = document.getElementById('details');
+            const pokemonImage = document.getElementById('pokemonImage');
+            const pokemonDetails = document.getElementById('pokemon-details');
+            
+            if (!pokemonId) {
+                alert("Please enter a Pokémon ID!");
+                return;
+            }
+            
+            fetch(`https://pokeapi.co/api/v2/pokemon/${pokemonId.toLowerCase()}`)
+                .then(response => response.json())
+                .then(pokemon => {
+                    pokemonImage.src = pokemon.sprites.front_default;
+                    pokemonImage.alt = pokemon.name;
+                    detailsDiv.innerHTML = `
+                        <p><strong>Name:</strong> ${pokemon.name}</p>
+                        <p><strong>Height:</strong> ${pokemon.height / 10} m</p>
+                        <p><strong>Weight:</strong> ${pokemon.weight / 10} kg</p>
+                        <p><strong>Types:</strong> ${pokemon.types.map(type => type.type.name).join(', ')}</p>
+                        <p><strong>Abilities:</strong> ${pokemon.abilities.map(ability => ability.ability.name).join(', ')}</p>
+                        <p><strong>Base Experience:</strong> ${pokemon.base_experience}</p>
+                    `;
+                    pokemonDetails.style.display = 'block';
+
+                    // Aggregating data for the dashboard
+                    aggregateData(pokemon);
+                })
+                .catch(error => {
+                    alert("Pokemon not found. Please try again.");
+                });
+        });
+
+        function aggregateData(pokemon) {
+            pokemon.types.forEach(type => {
+                const typeName = type.type.name;
+                if (!pokemonData[typeName]) {
+                    pokemonData[typeName] = {
+                        baseExperience: [],
+                        abilities: new Set(),
+                    };
+                }
+
+                pokemonData[typeName].baseExperience.push(pokemon.base_experience);
+                pokemon.abilities.forEach(ability => {
+                    pokemonData[typeName].abilities.add(ability.ability.name);
+                });
+
+            });
+            renderDashboard();
+        }
+
+        function renderDashboard() {
+            // Calculate the average base experience and unique abilities for each type
+            const typeNames = Object.keys(pokemonData);
+            const avgBaseExp = [];
+            const uniqueAbilities = [];
+
+            typeNames.forEach(type => {
+                const data = pokemonData[type];
+                const avgExp = data.baseExperience.reduce((a, b) => a + b, 0) / data.baseExperience.length;
+                avgBaseExp.push(avgExp);
+                uniqueAbilities.push(data.abilities.size);
+            });
+
+            // Create chart
+            const ctx = document.getElementById('typeChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: typeNames,
+                    datasets: [{
+                        label: 'Average Base Experience',
+                        data: avgBaseExp,
+                        backgroundColor: '#3498db',
+                        borderColor: '#2980b9',
+                        borderWidth: 1
+                    }, {
+                        label: 'Unique Abilities',
+                        data: uniqueAbilities,
+                        backgroundColor: '#e74c3c',
+                        borderColor: '#c0392b',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+
+</body>
+</html>
